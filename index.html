@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Route Distance Capture v0.22</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    :root{
+      --sidebar-w: 305px;
+      --ink: #111827;
+      --muted: #64748b;
+      --line: #d1d5db;
+      --panel: #f8fafc;
+      --blue: #2563eb;
+      --red: #dc2626;
+      --green: #16a34a;
+      --orange: #ea580c;
+      --amber: #f59e0b;
+      --purple: #7c3aed;
+    }
+
+    *{box-sizing:border-box}
+
+    html, body{
+      margin:0;
+      height:100%;
+      width:100%;
+      overflow:hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+      color:var(--ink);
+    }
+
+    #app{
+      display:grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      height:100vh;
+      width:100vw;
+    }
+
+    #sidebar{
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      min-height:0;
+      overflow:hidden;
+    }
+
+    #header{
+      padding:9px 10px 8px;
+      background:#111827;
+      color:white;
+      flex:0 0 auto;
+    }
+
+    #header h1{
+      font-size:16px;
+      margin:0;
+      font-weight:750;
+    }
+
+    #header .sub{
+      display:none;
+    }
+
+    #summary{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:6px 9px;
+      background:white;
+      border-bottom:1px solid var(--line);
+      flex:0 0 auto;
+      font-size:12px;
+      line-height:1.2;
+    }
+
+    .routeStat{
+      display:flex;
+      align-items:baseline;
+      gap:5px;
+      min-width:0;
+    }
+
+    .routeStat .label{
+      font-size:10px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.04em;
+      font-weight:750;
+    }
+
+    .routeStat .value{
+      font-size:14px;
+      font-weight:850;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #mainTools{
+      padding:7px;
+      display:grid;
+      grid-template-columns:2.2fr 1fr;
+      gap:6px;
+      background:#f3f4f6;
+      border-bottom:1px solid var(--line);
+      flex:0 0 auto;
+    }
+
+    button{
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:7px 6px;
+      background:white;
+      color:var(--ink);
+      font-weight:700;
+      cursor:pointer;
+      font-size:12px;
+      line-height:1.15;
+    }
+
+    button:hover{filter:brightness(.98)}
+    button.primary{background:var(--blue); color:white; border-color:var(--blue)}
+    button.good{background:var(--green); color:white; border-color:var(--green)}
+    button.danger{background:var(--red); color:white; border-color:var(--red)}
+    button.armed{background:var(--amber); color:#111827; border-color:var(--amber)}
+    button.insertArmed{background:var(--purple); color:white; border-color:var(--purple)}
+
+    #armBtn, #insertBtn, #gpsToggleBtn{
+      grid-column:1 / -1;
+      font-size:13px;
+      padding:8px 7px;
+    }
+
+    #insertBtn{
+      grid-column:1 / -1;
+    }
+
+    #mainTools button{
+      min-height:38px;
+      font-size:14px;
+      font-weight:800;
+    }
+
+    #fitBtn{
+      background:#16a34a;
+      border-color:#15803d;
+      color:white;
+    }
+
+    #fitBtn:hover{
+      background:#15803d;
+    }
+
+    #helpBtn{
+      background:#f8fafc;
+      border-color:#cbd5e1;
+      color:#0f172a;
+    }
+
+    #armBtn, #insertBtn, #gpsToggleBtn{
+      grid-column:1 / -1;
+    }
+
+    #gpsCard{
+      display:none;
+      margin:8px 7px;
+      padding:8px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:white;
+      flex:0 0 auto;
+      max-height:min(560px, calc(100vh - 300px));
+      min-height:0;
+      overflow:hidden;
+    }
+
+    #gpsCard.open{
+      display:flex;
+      flex-direction:column;
+    }
+
+    #gpsCardBody{
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding-right:3px;
+      min-height:0;
+    }
+
+
+    #gpsCardTitle{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      margin-bottom:6px;
+    }
+
+    #gpsCardTitle b{
+      font-size:12px;
+    }
+
+    #gpsCardTitle span{
+      color:var(--muted);
+      font-size:10px;
+    }
+
+    .field{
+      margin-bottom:6px;
+    }
+
+    .field label{
+      display:block;
+      font-size:10px;
+      color:var(--muted);
+      font-weight:750;
+      margin-bottom:3px;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+    }
+
+    input, select, textarea{
+      font-family: inherit;
+    }
+
+    #gpsInput, #controlNote, #controlType, #gpsPlacement, #tripStartInput, #tripEndInput{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:7px 8px;
+      font-size:12px;
+      background:white;
+    }
+
+    #gpsButtons{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:7px;
+      margin-top:2px;
+    }
+
+    #status{
+      display:none;
+      padding:6px 8px;
+      font-size:12px;
+      color:var(--muted);
+      background:white;
+      border-top:1px solid var(--line);
+      border-bottom:1px solid var(--line);
+      min-height:28px;
+      flex:0 0 auto;
+    }
+
+    #status.show{
+      display:block;
+    }
+
+    #bottomActions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:7px;
+      padding:7px;
+      background:#f3f4f6;
+      border-top:1px solid var(--line);
+      flex:0 0 auto;
+    }
+
+    #saveRouteBtn, #loadRouteBtn{
+      background:white;
+      border-color:#cbd5e1;
+      color:#0f172a;
+    }
+
+    #waypoints{
+      list-style:none;
+      margin:0;
+      padding:8px 8px 18px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      flex:1 1 auto;
+      min-height:0;
+      overscroll-behavior:contain;
+    }
+
+    .wp{
+      background:white;
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:6px;
+      margin-bottom:6px;
+      box-shadow:0 1px 2px rgba(0,0,0,.035);
+      cursor:pointer;
+    }
+
+    .wp:hover{
+      border-color:#94a3b8;
+    }
+
+    .wp.selected{
+      border-color:var(--purple);
+      box-shadow:0 0 0 2px rgba(124,58,237,.18);
+    }
+
+    .wpTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      margin-bottom:2px;
+    }
+
+    .wpTitle{
+      font-weight:850;
+      font-size:13px;
+      line-height:1.2;
+    }
+
+    .typeTag{
+      display:inline-block;
+      margin-left:5px;
+      padding:1px 5px;
+      border-radius:999px;
+      border:1px solid #dbeafe;
+      background:#eff6ff;
+      color:#1d4ed8;
+      font-size:10px;
+      font-weight:800;
+      vertical-align:1px;
+    }
+
+    .selectedTag{
+      display:inline-block;
+      margin-left:5px;
+      padding:1px 5px;
+      border-radius:999px;
+      border:1px solid #ede9fe;
+      background:#f3e8ff;
+      color:#6d28d9;
+      font-size:10px;
+      font-weight:850;
+      vertical-align:1px;
+    }
+
+    .tripTag{
+      display:inline-block;
+      margin-left:5px;
+      padding:1px 5px;
+      border-radius:999px;
+      border:1px solid #fecaca;
+      background:#fef2f2;
+      color:#b91c1c;
+      font-size:10px;
+      font-weight:850;
+      vertical-align:1px;
+    }
+
+    .wpCoords{
+      font-size:10px;
+      color:var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      margin-bottom:3px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .wpMetrics{
+      display:flex;
+      flex-wrap:wrap;
+      gap:5px 9px;
+      align-items:center;
+      margin-bottom:4px;
+      color:var(--ink);
+      font-size:12px;
+      font-variant-numeric: tabular-nums;
+      line-height:1.2;
+    }
+
+    .wpMetrics span{
+      color:var(--muted);
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+      margin-right:3px;
+      font-weight:750;
+    }
+
+    .wpMetrics b{
+      font-size:11.5px;
+      font-weight:850;
+    }
+
+    .wpMetrics .lineDistance span,
+    .wpMetrics .lineDistance b{
+      color:#b91c1c;
+    }
+
+    .note{
+      width:100%;
+      resize:vertical;
+      min-height:27px;
+      max-height:58px;
+      border:1px solid var(--line);
+      border-radius:7px;
+      padding:4px 6px;
+      font-size:12px;
+      line-height:1.2;
+      display:block;
+      cursor:text;
+    }
+
+    .miniBtn{
+      padding:5px 7px;
+      font-size:11px;
+      border-radius:7px;
+      cursor:pointer;
+    }
+
+    #mapWrap{
+      position:relative;
+      min-width:0;
+    }
+
+    #map{
+      height:100%;
+      width:100%;
+    }
+
+    #mapHint{
+      position:absolute;
+      z-index:500;
+      top:12px;
+      left:70px;
+      max-width:460px;
+      background:rgba(17,24,39,.88);
+      color:white;
+      padding:10px 12px;
+      border-radius:9px;
+      font-size:13px;
+      line-height:1.35;
+      pointer-events:none;
+      box-shadow:0 2px 8px rgba(0,0,0,.25);
+    }
+
+    #mapHint.armedHint{
+      background:rgba(245,158,11,.94);
+      color:#111827;
+      font-weight:750;
+    }
+
+    #mapHint.insertHint{
+      background:rgba(124,58,237,.94);
+      color:white;
+      font-weight:750;
+    }
+
+    .popupBox{
+      min-width:215px;
+    }
+
+    .popupTitle{
+      font-weight:800;
+      margin-bottom:4px;
+    }
+
+    .popupCoords{
+      color:#64748b;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size:11px;
+      margin-bottom:7px;
+    }
+
+    .popupMetrics{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:5px;
+      margin-bottom:8px;
+    }
+
+    .popupMetric{
+      border:1px solid #e5e7eb;
+      background:#f9fafb;
+      border-radius:7px;
+      padding:5px;
+    }
+
+    .popupMetric span{
+      display:block;
+      color:#64748b;
+      font-size:9px;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+
+    .popupMetric b{
+      display:block;
+      font-size:12px;
+      margin-top:1px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .popupTrip{
+      margin:0 0 8px;
+      padding:5px 6px;
+      border:1px solid #fecaca;
+      background:#fef2f2;
+      color:#991b1b;
+      border-radius:7px;
+      font-size:11px;
+      font-weight:750;
+      text-align:center;
+    }
+
+    .popupLinks{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:5px;
+    }
+
+    .popupLinks a{
+      display:block;
+      text-align:center;
+      text-decoration:none;
+      border-radius:7px;
+      padding:7px 8px;
+      color:white;
+      font-size:12px;
+      font-weight:750;
+    }
+
+    .popupEarth{background:#2563eb}
+    .popupSat{background:#16a34a}
+    .popupStreet{background:#ea580c}
+
+    .popupEdit{
+      width:100%;
+      margin-top:7px;
+      background:#111827;
+      border-color:#111827;
+      color:white;
+      border-radius:7px;
+      padding:7px 8px;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .popupDelete{
+      width:100%;
+      margin-top:7px;
+      background:#dc2626;
+      border-color:#dc2626;
+      color:white;
+      border-radius:7px;
+      padding:7px 8px;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    @media (max-width: 800px){
+      #app{
+        grid-template-columns:1fr;
+        grid-template-rows:45vh 55vh;
+      }
+      #sidebar{
+        order:2;
+        border-right:0;
+        border-top:1px solid var(--line);
+      }
+      #mapWrap{order:1}
+      #mapHint{font-size:12px; max-width:calc(100vw - 84px)}
+    }
+
+    #helpOverlay{
+      position:fixed;
+      inset:0;
+      z-index:3000;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(15,23,42,0.42);
+      padding:18px;
+    }
+
+    #helpOverlay.open{
+      display:flex;
+    }
+
+    #helpPanel{
+      width:min(720px, calc(100vw - 36px));
+      max-height:min(82vh, 820px);
+      overflow:auto;
+      background:white;
+      border-radius:14px;
+      border:1px solid #cbd5e1;
+      box-shadow:0 24px 70px rgba(15,23,42,0.28);
+    }
+
+    #helpHeader{
+      position:sticky;
+      top:0;
+      z-index:2;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px 16px;
+      border-bottom:1px solid #e2e8f0;
+      background:#0f172a;
+      color:white;
+    }
+
+    #helpHeader h2{
+      margin:0;
+      font-size:18px;
+      line-height:1.1;
+    }
+
+    #helpCloseBtn{
+      width:auto;
+      min-height:32px;
+      padding:6px 11px;
+      border-radius:8px;
+      border-color:#334155;
+      background:#f8fafc;
+      color:#0f172a;
+      font-size:13px;
+      font-weight:850;
+    }
+
+    #helpBody{
+      padding:14px 18px 18px;
+      font-size:13px;
+      line-height:1.45;
+      color:#0f172a;
+    }
+
+    #helpBody h3{
+      margin:15px 0 6px;
+      font-size:15px;
+      color:#0f172a;
+    }
+
+    #helpBody h3:first-child{
+      margin-top:0;
+    }
+
+    #helpBody p{
+      margin:6px 0;
+    }
+
+    #helpBody ul, #helpBody ol{
+      margin:6px 0 10px 20px;
+      padding:0;
+    }
+
+    #helpBody li{
+      margin:3px 0;
+    }
+
+    .helpNote{
+      margin:10px 0;
+      padding:9px 10px;
+      border-radius:9px;
+      border:1px solid #bfdbfe;
+      background:#eff6ff;
+      color:#1e3a8a;
+      font-weight:650;
+    }
+
+    .helpColour{
+      display:grid;
+      grid-template-columns:90px 1fr;
+      gap:6px 10px;
+      margin:8px 0;
+    }
+
+    .helpSwatch{
+      display:inline-block;
+      width:30px;
+      height:10px;
+      border-radius:999px;
+      margin-right:6px;
+      vertical-align:1px;
+    }
+
+
+    #gpsCard .field{
+      margin-bottom:7px;
+    }
+
+    #gpsCard .field label{
+      font-size:11px;
+      line-height:1.1;
+      margin-bottom:4px;
+    }
+
+    #gpsInput, #controlNote, #controlType, #gpsPlacement, #tripStartInput, #tripEndInput{
+      min-height:36px;
+      height:36px;
+      padding:7px 10px;
+    }
+
+    #gpsButtons{
+      position:sticky;
+      bottom:0;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      padding-top:8px;
+      margin-top:0;
+      background:white;
+      border-top:1px solid #eef2f7;
+      flex:0 0 auto;
+    }
+
+    #gpsButtons button{
+      min-height:36px;
+    }
+
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div id="header">
+        <h1>Route Distance Capture v0.22</h1>
+
+      </div>
+
+      <section id="summary">
+        <div class="routeStat">
+          <span class="label">WP</span>
+          <span class="value" id="wpCount">0</span>
+        </div>
+        <div class="routeStat">
+          <span class="label">Total</span>
+          <span class="value"><span id="totalKm">0.00</span> km</span>
+        </div>
+      </section>
+
+      <section id="mainTools">
+        <button id="fitBtn">Fit Route</button>
+        <button id="helpBtn">Help</button>
+        <button class="primary" id="armBtn">Add Next WP: OFF</button>
+        <button id="insertBtn">Insert After Selected: OFF</button>
+        <button id="gpsToggleBtn">Add GPS Control</button>
+      </section>
+
+      <section id="gpsCard">
+        <div id="gpsCardTitle">
+          <b id="gpsCardTitleText">Add GPS Control</b>
+          <span id="gpsCardModeText">choose placement below</span>
+        </div>
+
+        <div id="gpsCardBody">
+        <div class="field">
+          <label for="gpsInput">Latitude, Longitude</label>
+          <input id="gpsInput" placeholder="-33.96400, 18.92900">
+        </div>
+
+        <div class="field">
+          <label for="controlType">Type</label>
+          <select id="controlType">
+            <option value="Instruction">Instruction</option>
+            <option value="STC">STC</option>
+            <option value="Start STC">Start STC</option>
+            <option value="Marshal">Marshal</option>
+            <option value="Open Control">Open Control</option>
+          </select>
+        </div>
+
+        <div class="field" id="placementField">
+          <label for="gpsPlacement">Placement</label>
+          <select id="gpsPlacement">
+            <option value="end">Add as next WP</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="tripStartInput">Line start GPS</label>
+          <input id="tripStartInput" placeholder="optional: lat, lon">
+        </div>
+
+        <div class="field">
+          <label for="tripEndInput">Line end GPS</label>
+          <input id="tripEndInput" placeholder="optional: lat, lon">
+        </div>
+
+        <div class="field">
+          <label for="controlNote">Note</label>
+          <input id="controlNote" placeholder="e.g. STC at farm gate">
+        </div>
+
+        </div>
+
+        <div id="gpsButtons">
+          <button class="primary" id="addGpsBtn">Add WP</button>
+          <button id="cancelGpsBtn">Cancel</button>
+        </div>
+      </section>
+
+      <div id="status"></div>
+
+      <ul id="waypoints"></ul>
+
+      <section id="bottomActions">
+        <button id="saveRouteBtn">Save Route</button>
+        <button id="loadRouteBtn">Load Route</button>
+        <button class="good" id="csvBtn">Export CSV</button>
+        <button class="danger" id="clearBtn">Reset</button>
+        <input id="loadRouteInput" type="file" accept=".json,application/json" hidden>
+      </section>
+    </aside>
+
+    <main id="mapWrap">
+      <div id="map"></div>
+      <div id="mapHint">Map browsing mode. Use Add Next WP, or select a WP and use Insert.</div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+
+  <div id="helpOverlay" aria-hidden="true">
+    <div id="helpPanel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <div id="helpHeader">
+        <h2 id="helpTitle">Route Distance Capture — Help</h2>
+        <button id="helpCloseBtn" type="button">Close</button>
+      </div>
+      <div id="helpBody">
+        <h3>Purpose</h3>
+        <p>This tool builds a rally route, calculates routed road distance, adds GPS control points, draws red trip lines, checks locations externally, and exports CSV data.</p>
+
+        <div class="helpColour">
+          <div><span class="helpSwatch" style="background:#2563eb"></span>Blue</div><div>routed road path</div>
+          <div><span class="helpSwatch" style="background:#dc2626"></span>Red</div><div>control trip line</div>
+          <div>Pin</div><div>waypoint or control point</div>
+          <div><span class="helpSwatch" style="background:#16a34a"></span>Green</div><div>fit route view</div>
+        </div>
+
+        <h3>Fit Route</h3>
+        <p>Use <b>Fit Route</b> to zoom the map so the whole current route is visible.</p>
+
+        <h3>Add Next WP</h3>
+        <p>Use <b>Add Next WP</b> when adding the next single waypoint at the end of the route.</p>
+        <ol>
+          <li>Click <b>Add Next WP: OFF</b>.</li>
+          <li>The button changes to <b>ON</b>.</li>
+          <li>Click the map once.</li>
+          <li>One new waypoint is added at the end of the route.</li>
+          <li>The button automatically returns to <b>OFF</b>.</li>
+        </ol>
+        <div class="helpNote">Add Next WP = one click, one waypoint, then OFF.</div>
+
+        <h3>Insert After Selected</h3>
+        <p>Use <b>Insert After Selected</b> when adding one or more missed or intermediate waypoints.</p>
+        <ol>
+          <li>Select the waypoint after which new points should be inserted.</li>
+          <li>Click <b>Insert After Selected: OFF</b>.</li>
+          <li>The button changes to <b>ON</b>.</li>
+          <li>Click the map to insert a waypoint after the selected waypoint.</li>
+          <li>The new waypoint becomes the selected waypoint.</li>
+          <li>Continue clicking the map to add more inserted waypoints in sequence.</li>
+          <li>Click the button again to turn Insert mode <b>OFF</b>.</li>
+        </ol>
+        <div class="helpNote">Insert After Selected = stays ON and allows a series of inserted waypoints.</div>
+
+        <h3>Add GPS Control</h3>
+        <p>Use <b>Add GPS Control</b> when adding a control point from known GPS coordinates.</p>
+        <ol>
+          <li>Enter the control GPS coordinate.</li>
+          <li>Select the control type.</li>
+          <li>Choose whether to add as next WP or insert after an existing WP.</li>
+          <li>Optionally enter line start and end GPS coordinates.</li>
+          <li>Add a note if required.</li>
+          <li>Click <b>Add WP</b>.</li>
+        </ol>
+        <p>Control types include Instruction, STC, Start STC, Marshal, and Open Control.</p>
+
+        <h3>Trip Lines</h3>
+        <p>A trip line is shown in red. It represents the timing line across the road.</p>
+        <p>The visible red thickness is only for display. The real trip line is the centre line between the two entered coordinates.</p>
+        <p>If trip line coordinates are entered, both <b>Line start GPS</b> and <b>Line end GPS</b> must be valid.</p>
+        <p>Waypoint cards with a trip line show <b>LINE</b> distance to 3 decimal places, for metre-level display.</p>
+
+        <h3>Edit Control / Trip Line</h3>
+        <ol>
+          <li>Click the waypoint pin on the map.</li>
+          <li>Click <b>Edit Control / Trip Line</b> in the popup.</li>
+          <li>Update the GPS, type, trip line, or note.</li>
+          <li>Click <b>Update WP</b>.</li>
+        </ol>
+        <p>The waypoint keeps the same number. If the waypoint GPS changes, the route recalculates.</p>
+
+        <h3>Street View, Satellite View, and Google Earth</h3>
+        <p>The popup buttons open the selected waypoint directly in external map tools. Street View is useful for checking the exact control area without manually searching in Google Maps.</p>
+
+        <h3>Delete Waypoint</h3>
+        <p>Use <b>Delete Waypoint</b> from the map popup. Deleting is deliberate and should be used carefully.</p>
+
+        <h3>Distance Display</h3>
+        <ul>
+          <li><b>SEG</b> and <b>CUM</b> are shown to 2 decimals.</li>
+          <li><b>LINE</b> is shown to 3 decimals when a trip line exists.</li>
+        </ul>
+
+        <h3>Save Route / Load Route</h3>
+        <p><b>Save Route</b> saves the full editable route as a JSON project file. Choose where to save it, such as a rally folder for Day 1 or Day 2.</p>
+        <p><b>Load Route</b> opens a previously saved JSON route file and redraws the waypoints, route, and red trip lines.</p>
+        <p>JSON is for editable route projects. CSV is for exporting route/control data to other rally workflows.</p>
+
+        <h3>CSV Export</h3>
+        <p><b>Export CSV</b> saves waypoint number, type, segment distance, cumulative distance, line distance, GPS coordinates, trip line coordinates, and notes.</p>
+
+        <h3>Reset</h3>
+        <p><b>Reset</b> clears the current route, waypoints, control points, trip lines, and notes.</p>
+
+        <h3>Suggested Working Method</h3>
+        <ol>
+          <li>Add the main route waypoints in order.</li>
+          <li>Use Insert After Selected to improve the route shape.</li>
+          <li>Add GPS controls.</li>
+          <li>Add trip line start and end coordinates.</li>
+          <li>Check each control using Street View or Satellite View.</li>
+          <li>Confirm distances.</li>
+          <li>Export CSV.</li>
+        </ol>
+
+        <h3>Important Note</h3>
+        <p>The tool uses routed road distance, not straight-line distance. The route depends on available map and routing data.</p>
+        <p>Future versions may calculate the exact distance where the blue route crosses the red trip line.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'tsd_route_capture_v022';
+    const OLD_STORAGE_KEYS = ['tsd_route_capture_v021', 'tsd_route_capture_v020', 'tsd_route_capture_v019b', 'tsd_route_capture_v019', 'tsd_route_capture_v018', 'tsd_route_capture_v017b', 'tsd_route_capture_v017', 'tsd_route_capture_v016', 'tsd_route_capture_v015', 'tsd_route_capture_v014', 'tsd_route_capture_v013', 'tsd_route_capture_v012', 'tsd_route_capture_v011', 'tsd_route_capture_v010', 'tsd_route_capture_v009', 'tsd_route_capture_v008', 'tsd_route_capture_v007', 'tsd_route_capture_v006', 'tsd_route_capture_v005', 'tsd_route_capture_v004', 'tsd_route_capture_v003'];
+
+    const state = {
+      waypoints: [],
+      markers: [],
+      tripLineLayers: [],
+      routeLayer: null,
+      routeGeoJson: null,
+      routeDistanceM: 0,
+      addArmed: false,
+      insertArmed: false,
+      selectedIndex: null,
+      editIndex: null
+    };
+
+    const map = L.map('map', {
+      zoomControl: true,
+      preferCanvas: true
+    }).setView([-33.964, 18.929], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const els = {
+      wpCount: document.getElementById('wpCount'),
+      totalKm: document.getElementById('totalKm'),
+      status: document.getElementById('status'),
+      list: document.getElementById('waypoints'),
+      gpsInput: document.getElementById('gpsInput'),
+      tripStartInput: document.getElementById('tripStartInput'),
+      tripEndInput: document.getElementById('tripEndInput'),
+      controlType: document.getElementById('controlType'),
+      controlNote: document.getElementById('controlNote'),
+      armBtn: document.getElementById('armBtn'),
+      insertBtn: document.getElementById('insertBtn'),
+      gpsToggleBtn: document.getElementById('gpsToggleBtn'),
+      gpsCard: document.getElementById('gpsCard'),
+      gpsPlacement: document.getElementById('gpsPlacement'),
+      placementField: document.getElementById('placementField'),
+      gpsCardTitleText: document.getElementById('gpsCardTitleText'),
+      gpsCardModeText: document.getElementById('gpsCardModeText'),
+      addGpsBtn: document.getElementById('addGpsBtn'),
+      mapHint: document.getElementById('mapHint')
+    };
+
+    map.on('click', (ev) => {
+      if (state.insertArmed) {
+        if (!hasSelected()) {
+          setStatus('Select a waypoint first, then use Insert After Selected WP.', true);
+          return;
+        }
+
+        const insertAt = state.selectedIndex + 1;
+        addWaypoint(ev.latlng.lat, ev.latlng.lng, {
+          type: 'Instruction',
+          note: '',
+          index: insertAt
+        });
+
+        state.selectedIndex = insertAt;
+        setStatus(`Inserted WP ${insertAt + 1}. Insert mode remains ON; click again to add the next diversion point.`);
+        updateModeUi();
+        return;
+      }
+
+      if (state.addArmed) {
+        addWaypoint(ev.latlng.lat, ev.latlng.lng, {
+          type: 'Instruction',
+          note: ''
+        });
+        setAddArmed(false);
+        return;
+      }
+
+      setStatus('Map click ignored. Use Add Next WP or Insert first.', false, true);
+    });
+
+    document.getElementById('armBtn').addEventListener('click', () => {
+      setAddArmed(!state.addArmed);
+    });
+
+    document.getElementById('insertBtn').addEventListener('click', () => {
+      setInsertArmed(!state.insertArmed);
+    });
+
+    document.getElementById('gpsToggleBtn').addEventListener('click', () => {
+      const open = !els.gpsCard.classList.contains('open');
+      if (open) {
+        openAddGpsCard();
+      } else {
+        toggleGpsCard(false);
+      }
+    });
+
+    document.getElementById('cancelGpsBtn').addEventListener('click', () => {
+      toggleGpsCard(false);
+      clearGpsForm();
+    });
+
+
+    function openHelp(){
+      const overlay = document.getElementById('helpOverlay');
+      if (!overlay) return;
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeHelp(){
+      const overlay = document.getElementById('helpOverlay');
+      if (!overlay) return;
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function wireHelp(){
+      const helpBtn = document.getElementById('helpBtn');
+      const closeBtn = document.getElementById('helpCloseBtn');
+      const overlay = document.getElementById('helpOverlay');
+
+      if (helpBtn) helpBtn.addEventListener('click', openHelp);
+      if (closeBtn) closeBtn.addEventListener('click', closeHelp);
+      if (overlay) {
+        overlay.addEventListener('click', (ev) => {
+          if (ev.target === overlay) closeHelp();
+        });
+      }
+
+      window.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape') closeHelp();
+      });
+    }
+
+    document.getElementById('fitBtn').addEventListener('click', fitRoute);
+    wireHelp();
+    document.getElementById('saveRouteBtn').addEventListener('click', saveRouteFile);
+    document.getElementById('loadRouteBtn').addEventListener('click', loadRouteFile);
+    document.getElementById('loadRouteInput').addEventListener('change', handleRouteFileSelected);
+    document.getElementById('clearBtn').addEventListener('click', clearAll);
+    document.getElementById('csvBtn').addEventListener('click', exportCsv);
+    document.getElementById('addGpsBtn').addEventListener('click', addGpsControlPoint);
+
+    els.gpsInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') addGpsControlPoint();
+    });
+
+    els.controlNote.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') addGpsControlPoint();
+    });
+
+    els.tripStartInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') addGpsControlPoint();
+    });
+
+    els.tripEndInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') addGpsControlPoint();
+    });
+
+    function hasSelected(){
+      return Number.isInteger(state.selectedIndex) &&
+        state.selectedIndex >= 0 &&
+        state.selectedIndex < state.waypoints.length;
+    }
+
+    function setAddArmed(on){
+      state.addArmed = !!on;
+      if (state.addArmed) {
+        state.insertArmed = false;
+      }
+      updateModeUi();
+    }
+
+    function setInsertArmed(on){
+      if (on && !hasSelected()) {
+        setStatus('Select a waypoint card or pin first, then turn Insert mode ON.', true);
+        return;
+      }
+
+      state.insertArmed = !!on;
+      if (state.insertArmed) {
+        state.addArmed = false;
+      }
+      updateModeUi();
+    }
+
+    function updateModeUi(){
+      els.armBtn.textContent = state.addArmed ? 'Add Next Map Point: ON — click map once' : 'Add Next WP: OFF';
+      els.armBtn.classList.toggle('armed', state.addArmed);
+
+      const selectedText = hasSelected() ? `WP ${state.selectedIndex + 1}` : 'no WP selected';
+      els.insertBtn.textContent = state.insertArmed
+        ? `Insert After ${selectedText}: ON`
+        : `Insert After Selected: OFF`;
+      els.insertBtn.classList.toggle('insertArmed', state.insertArmed);
+      refreshGpsPlacementOptions();
+
+      if (state.insertArmed) {
+        els.mapHint.textContent = `INSERT MODE: click map to insert after WP ${state.selectedIndex + 1}. New insert becomes selected for the next click.`;
+        els.mapHint.classList.add('insertHint');
+        els.mapHint.classList.remove('armedHint');
+        map.getContainer().style.cursor = 'crosshair';
+        setStatus(`Insert mode ON after WP ${state.selectedIndex + 1}. Click map to add intermediate waypoints.`, false, true);
+      } else if (state.addArmed) {
+        els.mapHint.textContent = 'ADD NEXT: click map once to append a waypoint.';
+        els.mapHint.classList.add('armedHint');
+        els.mapHint.classList.remove('insertHint');
+        map.getContainer().style.cursor = 'crosshair';
+        setStatus('Add mode armed. Click the map once to place the next waypoint at the end.', false, true);
+      } else {
+        els.mapHint.textContent = 'Map browsing mode. Use Add Next WP, or select a WP and use Insert.';
+        els.mapHint.classList.remove('armedHint', 'insertHint');
+        map.getContainer().style.cursor = '';
+      }
+
+      render();
+    }
+
+    function setStatus(msg, isError = false, forceShow = false){
+      const text = String(msg || '').trim();
+      els.status.textContent = text;
+      els.status.style.color = isError ? '#dc2626' : '#64748b';
+
+      const shouldShow = !!text && (
+        isError ||
+        forceShow ||
+        text.includes('mode') ||
+        text.includes('Select') ||
+        text.includes('ignored') ||
+        text.includes('insert') ||
+        text.includes('Insert') ||
+        text.includes('added') ||
+        text.includes('WP')
+      );
+
+      els.status.classList.toggle('show', shouldShow);
+    }
+
+    function gpsString(lat, lng){
+      return `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+    }
+
+    function clearGpsForm(){
+      els.gpsInput.value = '';
+      els.tripStartInput.value = '';
+      els.tripEndInput.value = '';
+      els.controlNote.value = '';
+      els.controlType.value = 'Instruction';
+    }
+
+    function openAddGpsCard(){
+      state.editIndex = null;
+      els.gpsCardTitleText.textContent = 'Add GPS Control';
+      els.gpsCardModeText.textContent = 'choose placement below';
+      els.addGpsBtn.textContent = 'Add WP';
+      els.placementField.style.display = '';
+      clearGpsForm();
+      toggleGpsCard(true);
+    }
+
+    function refreshGpsPlacementOptions(){
+      if (!els.gpsPlacement) return;
+
+      const current = els.gpsPlacement.value;
+      els.gpsPlacement.innerHTML = '';
+
+      const endOpt = document.createElement('option');
+      endOpt.value = 'end';
+      endOpt.textContent = 'Add as next WP';
+      els.gpsPlacement.appendChild(endOpt);
+
+      state.waypoints.forEach((wp, index) => {
+        const opt = document.createElement('option');
+        opt.value = `after:${index}`;
+        opt.textContent = `Insert after WP ${index + 1}`;
+        els.gpsPlacement.appendChild(opt);
+      });
+
+      const selectedValue = hasSelected() ? `after:${state.selectedIndex}` : 'end';
+
+      if ([...els.gpsPlacement.options].some(opt => opt.value === current)) {
+        els.gpsPlacement.value = current;
+      } else {
+        els.gpsPlacement.value = selectedValue;
+      }
+    }
+
+    function toggleGpsCard(open){
+      els.gpsCard.classList.toggle('open', !!open);
+      if (!open) {
+        state.editIndex = null;
+        return;
+      }
+
+      refreshGpsPlacementOptions();
+
+      if (state.editIndex === null && hasSelected()) {
+        els.gpsPlacement.value = `after:${state.selectedIndex}`;
+      }
+
+      els.gpsInput.focus();
+    }
+
+    function editWaypoint(index){
+      if (index < 0 || index >= state.waypoints.length) return;
+
+      const wp = state.waypoints[index];
+      state.editIndex = index;
+      state.selectedIndex = index;
+
+      els.gpsCardTitleText.textContent = `Edit WP ${index + 1}`;
+      els.gpsCardModeText.textContent = 'update existing waypoint';
+      els.addGpsBtn.textContent = 'Update WP';
+      els.placementField.style.display = 'none';
+
+      els.gpsInput.value = gpsString(wp.lat, wp.lng);
+      els.controlType.value = wp.type || 'Instruction';
+      els.controlNote.value = wp.note || '';
+
+      els.tripStartInput.value = Number.isFinite(wp.tripStartLat) && Number.isFinite(wp.tripStartLng)
+        ? gpsString(wp.tripStartLat, wp.tripStartLng)
+        : '';
+
+      els.tripEndInput.value = Number.isFinite(wp.tripEndLat) && Number.isFinite(wp.tripEndLng)
+        ? gpsString(wp.tripEndLat, wp.tripEndLng)
+        : '';
+
+      toggleGpsCard(true);
+      updateModeUi();
+      scrollSidebarToWaypoint(index);
+      setStatus(`Editing WP ${index + 1}.`, false, true);
+    }
+
+    function addWaypoint(lat, lng, options = {}){
+      const type = options.type || 'Instruction';
+      const note = options.note || '';
+      const wp = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+        lat: Number(lat),
+        lng: Number(lng),
+        type,
+        note,
+        tripStartLat: Number.isFinite(options.tripStartLat) ? options.tripStartLat : null,
+        tripStartLng: Number.isFinite(options.tripStartLng) ? options.tripStartLng : null,
+        tripEndLat: Number.isFinite(options.tripEndLat) ? options.tripEndLat : null,
+        tripEndLng: Number.isFinite(options.tripEndLng) ? options.tripEndLng : null,
+        segmentKm: 0,
+        cumulativeKm: 0
+      };
+
+      if (Number.isInteger(options.index)) {
+        const insertIndex = Math.max(0, Math.min(options.index, state.waypoints.length));
+        state.waypoints.splice(insertIndex, 0, wp);
+        state.selectedIndex = insertIndex;
+      } else {
+        state.waypoints.push(wp);
+        state.selectedIndex = state.waypoints.length - 1;
+      }
+
+      rebuildMarkers();
+      recalcRoute();
+      saveLocal();
+    }
+
+    function parseLatLng(raw){
+      const parts = String(raw || '').trim().split(/[,\s]+/).map(Number).filter(n => Number.isFinite(n));
+      if (parts.length < 2) return null;
+
+      const [lat, lng] = parts;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+      return {lat, lng};
+    }
+
+    function addGpsControlPoint(){
+      const parsed = parseLatLng(els.gpsInput.value);
+
+      if (!parsed) {
+        setStatus('GPS control needs valid latitude and longitude, e.g. -33.96400, 18.92900', true);
+        return;
+      }
+
+      const type = els.controlType.value || 'Instruction';
+      const note = els.controlNote.value.trim();
+      const tripStart = String(els.tripStartInput.value || '').trim() ? parseLatLng(els.tripStartInput.value) : null;
+      const tripEnd = String(els.tripEndInput.value || '').trim() ? parseLatLng(els.tripEndInput.value) : null;
+
+      if ((String(els.tripStartInput.value || '').trim() || String(els.tripEndInput.value || '').trim()) && (!tripStart || !tripEnd)) {
+        setStatus('Trip line needs both valid start and end GPS coordinates, or leave both blank.', true);
+        return;
+      }
+
+      if (Number.isInteger(state.editIndex) && state.editIndex >= 0 && state.editIndex < state.waypoints.length) {
+        const index = state.editIndex;
+        const wp = state.waypoints[index];
+
+        wp.lat = parsed.lat;
+        wp.lng = parsed.lng;
+        wp.type = type;
+        wp.note = note;
+        wp.tripStartLat = tripStart ? tripStart.lat : null;
+        wp.tripStartLng = tripStart ? tripStart.lng : null;
+        wp.tripEndLat = tripEnd ? tripEnd.lat : null;
+        wp.tripEndLng = tripEnd ? tripEnd.lng : null;
+
+        state.selectedIndex = index;
+        toggleGpsCard(false);
+        rebuildMarkers();
+        recalcRoute();
+        saveLocal();
+        setStatus(`WP ${index + 1} updated.`, false, true);
+        return;
+      }
+
+      const placement = els.gpsPlacement ? els.gpsPlacement.value : 'end';
+
+      let insertIndex;
+      let placementText = 'added';
+
+      if (placement && placement.startsWith('after:')) {
+        const afterIndex = Number(placement.split(':')[1]);
+        if (Number.isInteger(afterIndex) && afterIndex >= 0 && afterIndex < state.waypoints.length) {
+          insertIndex = afterIndex + 1;
+          placementText = `inserted after WP ${afterIndex + 1}`;
+        }
+      }
+
+      addWaypoint(parsed.lat, parsed.lng, {
+        type,
+        note,
+        tripStartLat: tripStart ? tripStart.lat : null,
+        tripStartLng: tripStart ? tripStart.lng : null,
+        tripEndLat: tripEnd ? tripEnd.lat : null,
+        tripEndLng: tripEnd ? tripEnd.lng : null,
+        index: Number.isInteger(insertIndex) ? insertIndex : undefined
+      });
+
+      if (placementText === 'added') {
+        setStatus(`${type} added as WP ${state.waypoints.length}.`, false, true);
+      } else {
+        setStatus(`${type} ${placementText} as WP ${state.selectedIndex + 1}.`, false, true);
+      }
+
+      map.setView([parsed.lat, parsed.lng], Math.max(map.getZoom(), 14));
+      clearGpsForm();
+      toggleGpsCard(false);
+      refreshGpsPlacementOptions();
+      updateModeUi();
+    }
+
+    function hasTripLine(wp){
+      return Number.isFinite(wp.tripStartLat) &&
+        Number.isFinite(wp.tripStartLng) &&
+        Number.isFinite(wp.tripEndLat) &&
+        Number.isFinite(wp.tripEndLng);
+    }
+
+    function rebuildTripLines(){
+      state.tripLineLayers.forEach(layer => layer.remove());
+      state.tripLineLayers = [];
+
+      state.waypoints.forEach((wp, index) => {
+        if (!hasTripLine(wp)) return;
+
+        const line = L.polyline([
+          [wp.tripStartLat, wp.tripStartLng],
+          [wp.tripEndLat, wp.tripEndLng]
+        ], {
+          color: '#dc2626',
+          weight: 5,
+          opacity: 0.9
+        }).addTo(map);
+
+        line.bindTooltip(`WP ${index + 1} trip line`, {
+          sticky: true
+        });
+
+        state.tripLineLayers.push(line);
+      });
+    }
+
+    function inspectionUrls(wp){
+      const lat = wp.lat.toFixed(6);
+      const lng = wp.lng.toFixed(6);
+
+      return {
+        earth: `https://earth.google.com/web/@${lat},${lng},100a,800d,35y,0h,0t,0r`,
+        satellite: `https://www.google.com/maps/@${lat},${lng},18z/data=!3m1!1e3`,
+        street: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
+      };
+    }
+
+    function markerPopupHtml(wp, index){
+      const lat = wp.lat.toFixed(6);
+      const lng = wp.lng.toFixed(6);
+      const urls = inspectionUrls(wp);
+      const titleType = wp.type && wp.type !== 'Instruction' ? ` — ${escapeHtml(wp.type)}` : '';
+
+      return `
+        <div class="popupBox">
+          <div class="popupTitle">${index === 0 ? 'WP 1 (Start)' : `WP ${index + 1}`}${titleType}</div>
+          <div class="popupCoords">GPS ${lat}, ${lng}</div>
+
+          <div class="popupMetrics">
+            <div class="popupMetric"><span>Segment</span><b>${km(wp.segmentKm)} km</b></div>
+            <div class="popupMetric"><span>Cumulative</span><b>${km(wp.cumulativeKm)} km</b></div>
+          </div>
+
+          ${hasTripLine(wp) ? `<div class="popupTrip">Line distance ${km3(wp.cumulativeKm)} km</div>` : ''}
+
+          <div class="popupLinks">
+            <a class="popupEarth" href="${urls.earth}" target="_blank" rel="noopener">Open Google Earth</a>
+            <a class="popupSat" href="${urls.satellite}" target="_blank" rel="noopener">Open Maps Satellite View</a>
+            <a class="popupStreet" href="${urls.street}" target="_blank" rel="noopener">Open Maps Street View</a>
+          </div>
+
+          <button class="popupEdit" type="button" onclick="editWaypoint(${index})">Edit Control / Trip Line</button>
+          <button class="popupDelete" type="button" onclick="deleteWaypoint(${index})">Delete Waypoint</button>
+        </div>
+      `;
+    }
+
+    function rebuildMarkers(){
+      state.markers.forEach(m => m.remove());
+      state.markers = [];
+
+      state.waypoints.forEach((wp, index) => {
+        const marker = L.marker([wp.lat, wp.lng], {
+          draggable: true,
+          title: `WP ${index + 1}`
+        }).addTo(map);
+
+        const tooltipText = `WP ${index + 1}`;
+
+        marker.bindTooltip(tooltipText, {
+          permanent: true,
+          direction: 'right',
+          offset: [8, 0]
+        });
+
+        marker.bindPopup(markerPopupHtml(wp, index), {
+          closeButton: true,
+          autoPan: true
+        });
+
+        marker.on('click', () => {
+          state.selectedIndex = index;
+          updateModeUi();
+          scrollSidebarToWaypoint(index);
+        });
+
+        marker.on('popupclose', () => {
+          if (state.editIndex === index) {
+            toggleGpsCard(false);
+            clearGpsForm();
+          }
+
+          if (state.selectedIndex !== index) return;
+
+          state.selectedIndex = null;
+          render();
+          updateModeUi();
+        });
+
+        marker.on('dragend', () => {
+          const pos = marker.getLatLng();
+          wp.lat = pos.lat;
+          wp.lng = pos.lng;
+          rebuildMarkers();
+          recalcRoute();
+          saveLocal();
+        });
+
+        state.markers.push(marker);
+      });
+
+      rebuildTripLines();
+    }
+
+    async function recalcRoute(){
+      if (state.routeLayer) {
+        state.routeLayer.remove();
+        state.routeLayer = null;
+      }
+
+      state.waypoints.forEach((wp) => {
+        wp.segmentKm = 0;
+        wp.cumulativeKm = 0;
+      });
+
+      if (state.waypoints.length === 0) {
+        state.routeDistanceM = 0;
+        state.selectedIndex = null;
+        render();
+        setStatus('');
+        return;
+      }
+
+      if (state.selectedIndex !== null && state.selectedIndex >= state.waypoints.length) {
+        state.selectedIndex = state.waypoints.length - 1;
+      }
+
+      if (state.waypoints.length === 1) {
+        state.routeDistanceM = 0;
+        render();
+        setStatus('WP1 added. Add next point, paste GPS control point, or select WP1 for insert mode.');
+        return;
+      }
+
+      setStatus('Calculating OSRM road route...');
+
+      const coords = state.waypoints.map(wp => `${wp.lng.toFixed(6)},${wp.lat.toFixed(6)}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&annotations=false`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (!data.routes || !data.routes[0]) {
+          throw new Error(data.message || 'No route returned');
+        }
+
+        const route = data.routes[0];
+        state.routeGeoJson = route.geometry;
+        state.routeDistanceM = route.distance || 0;
+
+        let cumulative = 0;
+        state.waypoints[0].segmentKm = 0;
+        state.waypoints[0].cumulativeKm = 0;
+
+        route.legs.forEach((leg, index) => {
+          const segKm = (leg.distance || 0) / 1000;
+          cumulative += segKm;
+          if (state.waypoints[index + 1]) {
+            state.waypoints[index + 1].segmentKm = segKm;
+            state.waypoints[index + 1].cumulativeKm = cumulative;
+          }
+        });
+
+        state.routeLayer = L.geoJSON(route.geometry, {
+          style: {
+            color: '#2563eb',
+            weight: 5,
+            opacity: 0.85
+          }
+        }).addTo(map);
+
+        rebuildMarkers();
+        render();
+        els.list.scrollTop = els.list.scrollHeight;
+        saveLocal();
+        setStatus('');
+      } catch (err) {
+        render();
+        setStatus(`Route calculation failed: ${err.message}`, true);
+      }
+    }
+
+    function scrollSidebarToWaypoint(index){
+      const card = els.list.querySelector(`.wp[data-index="${index}"]`);
+      if (!card) return;
+
+      card.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+
+    function selectWaypoint(index, centre = false){
+      if (index < 0 || index >= state.waypoints.length) return;
+      state.selectedIndex = index;
+      const wp = state.waypoints[index];
+      const marker = state.markers[index];
+      if (centre && wp && marker) {
+        map.setView([wp.lat, wp.lng], Math.max(map.getZoom(), 15));
+        marker.openPopup();
+      }
+      updateModeUi();
+      scrollSidebarToWaypoint(index);
+      setStatus(`Selected WP ${index + 1}. Insert mode will add after this waypoint.`, false, true);
+    }
+
+    function render(){
+      els.wpCount.textContent = String(state.waypoints.length);
+      els.totalKm.textContent = km(state.routeDistanceM / 1000);
+
+      els.list.innerHTML = '';
+
+      state.waypoints.forEach((wp, index) => {
+        const lat = wp.lat.toFixed(6);
+        const lng = wp.lng.toFixed(6);
+        const showType = wp.type && wp.type !== 'Instruction' && wp.type !== 'Shaping';
+        const selected = index === state.selectedIndex;
+        const showTrip = hasTripLine(wp);
+
+        const li = document.createElement('li');
+        li.className = selected ? 'wp selected' : 'wp';
+        li.dataset.index = String(index);
+        li.innerHTML = `
+          <div class="wpTop">
+            <div class="wpTitle">
+              ${index === 0 ? 'WP 1 (Start)' : `WP ${index + 1}`}
+              ${showType ? `<span class="typeTag">${escapeHtml(wp.type)}</span>` : ''}
+              ${showTrip ? `<span class="tripTag">trip</span>` : ''}
+              ${selected ? `<span class="selectedTag">selected</span>` : ''}
+            </div>
+          </div>
+
+          <div class="wpCoords">GPS ${lat}, ${lng}</div>
+
+          <div class="wpMetrics">
+            <div><span>Seg</span><b>${km(wp.segmentKm)} km</b></div>
+            <div><span>Cum</span><b>${km(wp.cumulativeKm)} km</b></div>
+            ${showTrip ? `<div class="lineDistance"><span>Line</span><b>${km3(wp.cumulativeKm)} km</b></div>` : ''}
+          </div>
+
+          <textarea class="note" data-index="${index}" placeholder="Note / instruction">${escapeHtml(wp.note)}</textarea>
+        `;
+
+        els.list.appendChild(li);
+      });
+
+      els.list.querySelectorAll('.note').forEach(area => {
+        area.addEventListener('click', (ev) => ev.stopPropagation());
+        area.addEventListener('input', () => {
+          const index = Number(area.dataset.index);
+          state.waypoints[index].note = area.value;
+          saveLocal();
+        });
+      });
+
+      els.list.querySelectorAll('.wp').forEach(card => {
+        card.addEventListener('click', (ev) => {
+          if (ev.target.closest('textarea') || ev.target.closest('button')) return;
+          const index = Number(card.dataset.index);
+          selectWaypoint(index, true);
+        });
+      });
+    }
+
+    function km(n){
+      return Number(n || 0).toFixed(2);
+    }
+
+    function km3(n){
+      return Number(n || 0).toFixed(3);
+    }
+
+    function deleteWaypoint(index){
+      state.waypoints.splice(index, 1);
+
+      if (state.waypoints.length === 0) {
+        state.selectedIndex = null;
+        state.insertArmed = false;
+      } else if (state.selectedIndex === index) {
+        state.selectedIndex = Math.min(index, state.waypoints.length - 1);
+      } else if (state.selectedIndex > index) {
+        state.selectedIndex -= 1;
+      }
+
+      rebuildMarkers();
+      recalcRoute();
+      saveLocal();
+      updateModeUi();
+    }
+
+    function undoLast(){
+      if (!state.waypoints.length) return;
+      state.waypoints.pop();
+      if (state.selectedIndex !== null && state.selectedIndex >= state.waypoints.length) {
+        state.selectedIndex = state.waypoints.length ? state.waypoints.length - 1 : null;
+      }
+      if (!state.waypoints.length) {
+        state.insertArmed = false;
+      }
+      rebuildMarkers();
+      recalcRoute();
+      saveLocal();
+      updateModeUi();
+    }
+
+    function clearAll(){
+      if (!confirm('Reset all waypoints for this route?')) return;
+      state.waypoints = [];
+      state.routeDistanceM = 0;
+      state.routeGeoJson = null;
+      state.selectedIndex = null;
+      state.editIndex = null;
+      state.addArmed = false;
+      state.insertArmed = false;
+      localStorage.removeItem(STORAGE_KEY);
+      rebuildMarkers();
+      recalcRoute();
+      updateModeUi();
+    }
+
+    function fitRoute(){
+      if (state.routeLayer) {
+        map.fitBounds(state.routeLayer.getBounds(), {padding:[30,30]});
+      } else if (state.markers.length) {
+        const group = L.featureGroup(state.markers);
+        map.fitBounds(group.getBounds(), {padding:[30,30]});
+      }
+    }
+
+
+    function routeProjectPayload(){
+      return {
+        app: 'Route Distance Capture',
+        version: '0.21',
+        savedAt: new Date().toISOString(),
+        waypoints: state.waypoints.map(wp => ({
+          id: wp.id,
+          lat: wp.lat,
+          lng: wp.lng,
+          type: wp.type || 'Instruction',
+          note: wp.note || '',
+          tripStartLat: Number.isFinite(wp.tripStartLat) ? wp.tripStartLat : null,
+          tripStartLng: Number.isFinite(wp.tripStartLng) ? wp.tripStartLng : null,
+          tripEndLat: Number.isFinite(wp.tripEndLat) ? wp.tripEndLat : null,
+          tripEndLng: Number.isFinite(wp.tripEndLng) ? wp.tripEndLng : null
+        }))
+      };
+    }
+
+    function safeFileName(){
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+      return `route_capture_${stamp}.json`;
+    }
+
+    async function saveRouteFile(){
+      const payload = routeProjectPayload();
+      const text = JSON.stringify(payload, null, 2);
+      const blob = new Blob([text], { type: 'application/json' });
+      const filename = safeFileName();
+
+      try {
+        if (window.showSaveFilePicker) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'Route JSON file',
+              accept: { 'application/json': ['.json'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          setStatus('Route saved.', false, true);
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.warn('Save picker failed, using download fallback.', err);
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus('Route downloaded as JSON.', false, true);
+    }
+
+    function loadRouteFile(){
+      const input = document.getElementById('loadRouteInput');
+      if (!input) return;
+      input.value = '';
+      input.click();
+    }
+
+    function applyRoutePayload(payload){
+      if (!payload || !Array.isArray(payload.waypoints)) {
+        throw new Error('Route file does not contain waypoints.');
+      }
+
+      state.waypoints = payload.waypoints
+        .filter(wp => Number.isFinite(Number(wp.lat)) && Number.isFinite(Number(wp.lng)))
+        .map(wp => ({
+          id: wp.id || String(Date.now() + Math.random()),
+          lat: Number(wp.lat),
+          lng: Number(wp.lng),
+          type: wp.type || 'Instruction',
+          note: wp.note || '',
+          tripStartLat: Number.isFinite(Number(wp.tripStartLat)) ? Number(wp.tripStartLat) : null,
+          tripStartLng: Number.isFinite(Number(wp.tripStartLng)) ? Number(wp.tripStartLng) : null,
+          tripEndLat: Number.isFinite(Number(wp.tripEndLat)) ? Number(wp.tripEndLat) : null,
+          tripEndLng: Number.isFinite(Number(wp.tripEndLng)) ? Number(wp.tripEndLng) : null,
+          segmentKm: 0,
+          cumulativeKm: 0
+        }));
+
+      state.selectedIndex = null;
+      state.editIndex = null;
+      state.addArmed = false;
+      state.insertArmed = false;
+      toggleGpsCard(false);
+      clearGpsForm();
+      rebuildMarkers();
+      recalcRoute();
+      saveLocal();
+      fitRoute();
+      updateModeUi();
+    }
+
+    async function handleRouteFileSelected(ev){
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        applyRoutePayload(payload);
+        setStatus(`Loaded ${file.name}.`, false, true);
+      } catch (err) {
+        console.error(err);
+        setStatus('Could not load route JSON file.', true);
+      } finally {
+        ev.target.value = '';
+      }
+    }
+
+    function exportCsv(){
+      const rows = [
+        ['Waypoint','Type','Segment km','Cumulative km','Line distance km','Latitude','Longitude','Trip line start lat','Trip line start lng','Trip line end lat','Trip line end lng','Note']
+      ];
+
+      state.waypoints.forEach((wp, index) => {
+        rows.push([
+          index + 1,
+          wp.type || 'Instruction',
+          km(wp.segmentKm),
+          km(wp.cumulativeKm),
+          hasTripLine(wp) ? km3(wp.cumulativeKm) : '',
+          wp.lat.toFixed(6),
+          wp.lng.toFixed(6),
+          Number.isFinite(wp.tripStartLat) ? wp.tripStartLat.toFixed(6) : '',
+          Number.isFinite(wp.tripStartLng) ? wp.tripStartLng.toFixed(6) : '',
+          Number.isFinite(wp.tripEndLat) ? wp.tripEndLat.toFixed(6) : '',
+          Number.isFinite(wp.tripEndLng) ? wp.tripEndLng.toFixed(6) : '',
+          wp.note || ''
+        ]);
+      });
+
+      const csv = rows.map(row => row.map(csvCell).join(',')).join('\n');
+      downloadText('tsd_route_points.csv', csv, 'text/csv');
+    }
+
+    function csvCell(value){
+      const s = String(value ?? '');
+      return `"${s.replaceAll('"', '""')}"`;
+    }
+
+    function downloadText(filename, text, type){
+      const blob = new Blob([text], {type});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function saveLocal(){
+      const payload = {
+        waypoints: state.waypoints
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function loadLocal(){
+      try {
+        let raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          for (const key of OLD_STORAGE_KEYS) {
+            raw = localStorage.getItem(key);
+            if (raw) break;
+          }
+        }
+
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (!payload || !Array.isArray(payload.waypoints)) return;
+
+        state.waypoints = payload.waypoints
+          .filter(wp => Number.isFinite(wp.lat) && Number.isFinite(wp.lng))
+          .map(wp => ({
+            id: wp.id || String(Date.now() + Math.random()),
+            lat: Number(wp.lat),
+            lng: Number(wp.lng),
+            type: wp.type || 'Instruction',
+            note: wp.note || '',
+            tripStartLat: Number.isFinite(wp.tripStartLat) ? Number(wp.tripStartLat) : null,
+            tripStartLng: Number.isFinite(wp.tripStartLng) ? Number(wp.tripStartLng) : null,
+            tripEndLat: Number.isFinite(wp.tripEndLat) ? Number(wp.tripEndLat) : null,
+            tripEndLng: Number.isFinite(wp.tripEndLng) ? Number(wp.tripEndLng) : null,
+            segmentKm: 0,
+            cumulativeKm: 0
+          }));
+
+        if (state.waypoints.length) {
+          state.selectedIndex = state.waypoints.length - 1;
+        }
+
+        rebuildMarkers();
+        recalcRoute();
+      } catch (err) {
+        setStatus('Saved route could not be loaded.', true);
+      }
+    }
+
+    function escapeHtml(text){
+      return String(text || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    loadLocal();
+    updateModeUi();
+    render();
+  </script>
+</body>
+</html>
